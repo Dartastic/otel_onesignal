@@ -1,18 +1,21 @@
-// Licensed under the Dartastic Pro Software License Agreement.
+// Licensed under the Apache License, Version 2.0
 // Copyright 2025-2026 Mindful Software LLC d/b/a Dartastic.io, All rights reserved.
 
-import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
 
 import 'otel_onesignal_suppression.dart';
 
 const _loggerName = 'package.onesignal';
 const _tracerName = 'dartastic_otel_libs_onesignal';
 
-Tracer _tracer() => OTel.tracerProvider().getTracer(_tracerName);
+APITracer _tracer() => OTelAPI.tracerProvider().getTracer(_tracerName);
 
 /// Pair returned from `tracedOnesignalSend` callback.
 class OnesignalSendResult<T> {
+  /// Creates a result.
   const OnesignalSendResult({required this.value, this.notificationId});
+
+  /// The value returned to the caller.
   final T value;
   final String? notificationId;
 }
@@ -39,21 +42,21 @@ Future<T> tracedOnesignalSend<T>({
   final span = _tracer().startSpan(
     'onesignal send',
     kind: SpanKind.producer,
-    attributes: OTel.attributesFromMap(m),
+    attributes: OTelAPI.attributesFromMap(m),
   );
   try {
     final r = await invoke();
     if (r.notificationId != null) {
-      span.addAttributes(OTel.attributes([
-        OTel.attributeString('messaging.message.id', r.notificationId!),
-        OTel.attributeString('onesignal.notification.id', r.notificationId!),
+      span.addAttributes(OTelAPI.attributes([
+        OTelAPI.attributeString('messaging.message.id', r.notificationId!),
+        OTelAPI.attributeString('onesignal.notification.id', r.notificationId!),
       ]));
     }
     return r.value;
   } catch (e, st) {
-    span.addAttributes(OTel.attributes([
-      OTel.attributeString(
-        ErrorResource.errorType.key,
+    span.addAttributes(OTelAPI.attributes([
+      OTelAPI.attributeString(
+        ErrorAttributes.errorType.key,
         e.runtimeType.toString(),
       ),
     ]));
@@ -70,20 +73,20 @@ Future<T> tracedOnesignalSend<T>({
 /// OpenTelemetry log records.
 class OTelOnesignal {
   OTelOnesignal({
-    LoggerProvider? loggerProvider,
+    APILoggerProvider? loggerProvider,
     this.forwardLogin,
     this.forwardLogout,
     this.forwardSendTag,
   }) : _loggerProvider = loggerProvider;
 
-  final LoggerProvider? _loggerProvider;
+  final APILoggerProvider? _loggerProvider;
 
   final void Function(String externalId)? forwardLogin;
   final void Function()? forwardLogout;
   final void Function(String key, String value)? forwardSendTag;
 
-  OTelLogger _logger() =>
-      (_loggerProvider ?? OTel.loggerProvider()).getLogger(_loggerName);
+  APILogger _logger() =>
+      (_loggerProvider ?? OTelAPI.loggerProvider()).getLogger(_loggerName);
 
   /// Records a OneSignal notification click on-device.
   void notificationClicked({
@@ -94,27 +97,27 @@ class OTelOnesignal {
   }) {
     if (onesignalInstrumentationSuppressed()) return;
     final attrs = <Attribute<Object>>[
-      OTel.attributeString('onesignal.event.type', 'click'),
-      OTel.attributeString('onesignal.notification.id', notificationId),
+      OTelAPI.attributeString('onesignal.event.type', 'click'),
+      OTelAPI.attributeString('onesignal.notification.id', notificationId),
       if (title != null)
-        OTel.attributeString('onesignal.notification.title', title),
+        OTelAPI.attributeString('onesignal.notification.title', title),
       if (body != null)
-        OTel.attributeString('onesignal.notification.body', body),
+        OTelAPI.attributeString('onesignal.notification.body', body),
     ];
     if (additionalData != null) {
       additionalData.forEach((k, v) {
         if (v == null) return;
         final key = 'onesignal.data.$k';
         if (v is String) {
-          attrs.add(OTel.attributeString(key, v));
+          attrs.add(OTelAPI.attributeString(key, v));
         } else if (v is int) {
-          attrs.add(OTel.attributeInt(key, v));
+          attrs.add(OTelAPI.attributeInt(key, v));
         } else if (v is double) {
-          attrs.add(OTel.attributeDouble(key, v));
+          attrs.add(OTelAPI.attributeDouble(key, v));
         } else if (v is bool) {
-          attrs.add(OTel.attributeBool(key, v));
+          attrs.add(OTelAPI.attributeBool(key, v));
         } else {
-          attrs.add(OTel.attributeString(key, v.toString()));
+          attrs.add(OTelAPI.attributeString(key, v.toString()));
         }
       });
     }
@@ -122,7 +125,7 @@ class OTelOnesignal {
       severityNumber: Severity.INFO,
       severityText: 'info',
       body: 'onesignal.click $notificationId',
-      attributes: OTel.attributes(attrs),
+      attributes: OTelAPI.attributes(attrs),
     );
   }
 
@@ -133,9 +136,9 @@ class OTelOnesignal {
       severityNumber: Severity.INFO,
       severityText: 'info',
       body: 'onesignal.will_display $notificationId',
-      attributes: OTel.attributes([
-        OTel.attributeString('onesignal.event.type', 'will_display'),
-        OTel.attributeString('onesignal.notification.id', notificationId),
+      attributes: OTelAPI.attributes([
+        OTelAPI.attributeString('onesignal.event.type', 'will_display'),
+        OTelAPI.attributeString('onesignal.notification.id', notificationId),
       ]),
     );
   }
@@ -148,10 +151,10 @@ class OTelOnesignal {
       severityNumber: Severity.INFO,
       severityText: 'info',
       body: 'onesignal.login $externalId',
-      attributes: OTel.attributes([
-        OTel.attributeString('onesignal.event.type', 'login'),
-        OTel.attributeString('onesignal.user.external_id', externalId),
-        OTel.attributeString(User.userId.key, externalId),
+      attributes: OTelAPI.attributes([
+        OTelAPI.attributeString('onesignal.event.type', 'login'),
+        OTelAPI.attributeString('onesignal.user.external_id', externalId),
+        OTelAPI.attributeString(User.userId.key, externalId),
       ]),
     );
   }
@@ -164,8 +167,8 @@ class OTelOnesignal {
       severityNumber: Severity.INFO,
       severityText: 'info',
       body: 'onesignal.logout',
-      attributes: OTel.attributes([
-        OTel.attributeString('onesignal.event.type', 'logout'),
+      attributes: OTelAPI.attributes([
+        OTelAPI.attributeString('onesignal.event.type', 'logout'),
       ]),
     );
   }
@@ -178,10 +181,10 @@ class OTelOnesignal {
       severityNumber: Severity.INFO,
       severityText: 'info',
       body: 'onesignal.send_tag $key',
-      attributes: OTel.attributes([
-        OTel.attributeString('onesignal.event.type', 'send_tag'),
-        OTel.attributeString('onesignal.tag.key', key),
-        OTel.attributeString('onesignal.tag.value', value),
+      attributes: OTelAPI.attributes([
+        OTelAPI.attributeString('onesignal.event.type', 'send_tag'),
+        OTelAPI.attributeString('onesignal.tag.key', key),
+        OTelAPI.attributeString('onesignal.tag.value', value),
       ]),
     );
   }
